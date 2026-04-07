@@ -1029,45 +1029,90 @@ body {
 
 
 /* ═══ DRIVE BROWSER SIDEBAR ═══ */
-.db-modal {
-  flex-direction: row !important;
-  flex-wrap: wrap;
-}
+.db-modal { flex-direction: row !important; }
+
 .db-sidebar {
-  width: 180px; flex-shrink: 0;
+  width: 210px; flex-shrink: 0;
   border-right: 1px solid var(--border);
   display: flex; flex-direction: column;
-  overflow-y: auto; padding: 10px 8px;
+  overflow-y: auto; padding: 8px 6px 16px;
   background: var(--surface2);
 }
 .db-sidebar::-webkit-scrollbar { width: 3px; }
-.db-sidebar::-webkit-scrollbar-thumb { background: var(--border2); }
+.db-sidebar::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
 
+/* Section headers like "Shared drives" */
 .db-sidebar-section {
   font-size: 10px; text-transform: uppercase; letter-spacing: 0.09em;
-  color: var(--muted); font-weight: 500; padding: 8px 8px 5px;
-  margin-top: 6px;
+  color: var(--muted); font-weight: 600; padding: 12px 12px 4px;
 }
-.db-sidebar-section:first-child { margin-top: 0; }
 
+/* Top-level nav rows: My Drive, Shared with me */
 .db-nav-item {
-  display: flex; align-items: center; gap: 8px;
-  padding: 7px 10px; border-radius: 8px; cursor: pointer;
-  font-size: 12px; color: var(--muted); font-family: var(--sans);
-  transition: background 0.12s, color 0.12s;
+  display: flex; align-items: center; gap: 0;
+  padding: 0; border-radius: 20px; cursor: pointer;
+  font-size: 13px; color: var(--text); font-family: var(--sans);
+  transition: background 0.12s;
+  overflow: hidden;
+}
+.db-nav-item:hover { background: var(--surface3); }
+.db-nav-item.active { background: var(--accent-dim); color: var(--accent); }
+
+.db-nav-inner {
+  display: flex; align-items: center; gap: 10px;
+  padding: 7px 12px; flex: 1; min-width: 0;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.db-nav-item:hover { background: var(--surface3); color: var(--text); }
-.db-nav-item.active { background: var(--accent-dim); color: var(--accent); }
-.db-nav-item .nav-icon { font-size: 15px; flex-shrink: 0; }
+
+/* Expand arrow for tree items */
+.db-tree-arrow {
+  width: 28px; height: 32px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px; color: var(--muted);
+  border-radius: 50%; transition: transform 0.18s, background 0.12s;
+  cursor: pointer;
+}
+.db-tree-arrow:hover { background: rgba(255,255,255,0.07); }
+.db-tree-arrow.open { transform: rotate(90deg); }
+
+/* Shared drive tree rows */
+.db-drive-row {
+  display: flex; align-items: center;
+  border-radius: 20px; cursor: pointer;
+  transition: background 0.12s; overflow: hidden;
+  font-size: 13px; color: var(--text); font-family: var(--sans);
+}
+.db-drive-row:hover { background: var(--surface3); }
+.db-drive-row.active { background: var(--accent-dim); color: var(--accent); }
+.db-drive-row .db-nav-inner { padding: 6px 12px 6px 4px; }
+
+/* Sub-folder rows indented under a drive */
+.db-subfolder-row {
+  display: flex; align-items: center;
+  padding: 5px 10px 5px 42px;
+  border-radius: 20px; cursor: pointer;
+  font-size: 12px; color: var(--muted); font-family: var(--sans);
+  transition: background 0.12s; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; gap: 8px;
+}
+.db-subfolder-row:hover { background: var(--surface3); color: var(--text); }
+.db-subfolder-row.active { background: var(--accent-dim); color: var(--accent); }
+
+/* Children container — collapsed by default */
+.db-drive-children {
+  overflow: hidden;
+  max-height: 0;
+  transition: max-height 0.22s ease;
+}
+.db-drive-children.open { max-height: 600px; }
+
+.nav-icon { font-size: 16px; flex-shrink: 0; }
 
 .db-main {
   flex: 1; min-width: 0;
   display: flex; flex-direction: column;
   overflow: hidden;
 }
-
-/* Header + toolbar + body + footer now live inside .db-main */
 .db-header, .db-toolbar, .db-body, .db-footer { width: 100%; }
 
 </style>
@@ -1422,7 +1467,7 @@ function dbSetActiveNav(id) {
     const el = document.getElementById(n);
     if (el) el.classList.remove('active');
   });
-  document.querySelectorAll('.db-nav-shared').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.db-nav-shared, .db-drive-row').forEach(el => el.classList.remove('active'));
   const target = document.getElementById(id) || document.querySelector(`[data-drive-nav="${id}"]`);
   if (target) target.classList.add('active');
 }
@@ -1453,7 +1498,7 @@ function dbNavSharedDrive(driveId, driveName) {
 
 async function dbLoadSharedDrives() {
   const container = document.getElementById('db-shared-drives');
-  container.innerHTML = '<div style="font-size:11px;color:var(--muted);padding:6px 10px;opacity:0.6;">Loading…</div>';
+  container.innerHTML = '<div style="font-size:11px;color:var(--muted);padding:5px 14px;opacity:0.6;">Loading…</div>';
   try {
     const data = await driveGet(
       'drives?pageSize=100&useDomainAdminAccess=false&fields=drives(id,name,kind)'
@@ -1462,45 +1507,110 @@ async function dbLoadSharedDrives() {
     console.log('Shared drives found:', drives.length, drives);
 
     if (drives.length === 0) {
-      container.innerHTML = `
-        <div style="font-size:11px;color:var(--muted);padding:6px 10px;line-height:1.5;">
-          No shared drives found.<br>
-          <span style="opacity:0.55;">Your account may not be a member of any shared drives.</span>
-        </div>`;
+      container.innerHTML = '<div style="font-size:11px;color:var(--muted);padding:5px 14px;opacity:0.5;">None available</div>';
       return;
     }
 
     container.innerHTML = '';
     drives.forEach(drive => {
-      const el = document.createElement('div');
-      el.className = 'db-nav-item db-nav-shared';
-      el.dataset.driveNav = drive.id;
-      el.innerHTML = `<span class="nav-icon">🏢</span> ${esc(drive.name)}`;
-      el.title = drive.name;
-      el.onclick = () => dbNavSharedDrive(drive.id, drive.name);
-      container.appendChild(el);
+      // Wrapper for the whole drive tree entry
+      const wrapper = document.createElement('div');
+
+      // The drive row itself (arrow + icon + name)
+      const row = document.createElement('div');
+      row.className = 'db-drive-row db-nav-shared';
+      row.dataset.driveNav = drive.id;
+      row.title = drive.name;
+
+      const arrow = document.createElement('div');
+      arrow.className = 'db-tree-arrow';
+      arrow.textContent = '▶';
+
+      const inner = document.createElement('div');
+      inner.className = 'db-nav-inner';
+      inner.innerHTML = `<span class="nav-icon">🏢</span><span style="overflow:hidden;text-overflow:ellipsis;">${esc(drive.name)}</span>`;
+
+      row.appendChild(arrow);
+      row.appendChild(inner);
+
+      // Children container (subfolders load on expand)
+      const children = document.createElement('div');
+      children.className = 'db-drive-children';
+
+      // Arrow toggles expand/collapse
+      arrow.onclick = (e) => {
+        e.stopPropagation();
+        const isOpen = children.classList.toggle('open');
+        arrow.classList.toggle('open', isOpen);
+        if (isOpen && children.childElementCount === 0) {
+          dbLoadDriveSubfolders(drive.id, drive.name, children);
+        }
+      };
+
+      // Clicking the name navigates into root of the shared drive
+      inner.onclick = () => dbNavSharedDrive(drive.id, drive.name);
+
+      wrapper.appendChild(row);
+      wrapper.appendChild(children);
+      container.appendChild(wrapper);
     });
 
   } catch(e) {
     console.error('dbLoadSharedDrives error:', e);
-    // Show full visible error in sidebar with retry button
     container.innerHTML = `
-      <div style="padding:8px 10px;">
-        <div style="font-size:11px;color:var(--danger);margin-bottom:6px;line-height:1.5;">
-          ⚠ ${esc(e.message)}
-        </div>
+      <div style="padding:8px 12px;">
+        <div style="font-size:11px;color:var(--danger);margin-bottom:6px;line-height:1.5;">⚠ ${esc(e.message)}</div>
         <div style="font-size:10px;color:var(--muted);margin-bottom:8px;line-height:1.4;">
-          This usually means the Drive API returned a 403. Check that your OAuth
-          consent screen scope includes <code style="color:var(--accent)">auth/drive</code>
-          and that your Workspace admin hasn't blocked third-party Drive access.
+          403 usually means your Workspace admin has blocked third-party Drive API access,
+          or your OAuth scope is missing <code style="color:var(--accent)">auth/drive</code>.
         </div>
         <button onclick="dbLoadSharedDrives()"
           style="font-size:11px;padding:4px 10px;background:var(--surface3);
                  border:1px solid var(--border2);border-radius:5px;color:var(--text);
-                 cursor:pointer;width:100%;">
-          ↺ Retry
-        </button>
+                 cursor:pointer;width:100%;">↺ Retry</button>
       </div>`;
+  }
+}
+
+// Load top-level subfolders of a shared drive into the sidebar tree
+async function dbLoadDriveSubfolders(driveId, driveName, container) {
+  container.innerHTML = '<div style="padding:4px 14px 4px 42px;font-size:11px;color:var(--muted);">Loading…</div>';
+  try {
+    const data = await driveGet(
+      `files?q='${driveId}'+in+parents+and+mimeType='application/vnd.google-apps.folder'+and+trashed=false` +
+      `&supportsAllDrives=true&includeItemsFromAllDrives=true` +
+      `&driveId=${driveId}&corpora=drive` +
+      `&fields=files(id,name)&orderBy=name&pageSize=50`
+    );
+    const folders = data.files || [];
+    container.innerHTML = '';
+    if (folders.length === 0) {
+      container.innerHTML = '<div style="padding:4px 14px 4px 42px;font-size:11px;color:var(--muted);opacity:0.5;">No subfolders</div>';
+      return;
+    }
+    folders.forEach(folder => {
+      const el = document.createElement('div');
+      el.className = 'db-subfolder-row';
+      el.innerHTML = `<span style="font-size:13px;">📁</span><span style="overflow:hidden;text-overflow:ellipsis;">${esc(folder.name)}</span>`;
+      el.title = folder.name;
+      el.onclick = () => {
+        // Navigate into this subfolder, treating it as a shared drive folder
+        DB.mode = 'shareddrive';
+        DB.currentDriveId = driveId;
+        DB.stack = [
+          { id: driveId, name: driveName },
+          { id: folder.id, name: folder.name }
+        ];
+        // Mark active
+        document.querySelectorAll('.db-subfolder-row').forEach(r => r.classList.remove('active'));
+        el.classList.add('active');
+        dbSetActiveNav(driveId);
+        dbLoadSharedDriveFolder(driveId, folder.id, folder.name);
+      };
+      container.appendChild(el);
+    });
+  } catch(e) {
+    container.innerHTML = `<div style="padding:4px 14px 4px 42px;font-size:11px;color:var(--danger);">Error: ${esc(e.message)}</div>`;
   }
 }
 
@@ -2222,17 +2332,22 @@ document.addEventListener('keydown', e => {
 
     <!-- Sidebar -->
     <div class="db-sidebar" id="db-sidebar">
-      <div class="db-sidebar-section">My Drive</div>
+
       <div class="db-nav-item active" id="nav-mydrive" onclick="dbNavMyDrive()">
-        <span class="nav-icon">🗂</span> My Drive
+        <div class="db-tree-arrow" style="visibility:hidden;">▶</div>
+        <div class="db-nav-inner"><span class="nav-icon">🗂</span> My Drive</div>
       </div>
+
       <div class="db-nav-item" id="nav-sharedwithme" onclick="dbNavSharedWithMe()">
-        <span class="nav-icon">👥</span> Shared with me
+        <div class="db-tree-arrow" style="visibility:hidden;">▶</div>
+        <div class="db-nav-inner"><span class="nav-icon">👥</span> Shared with me</div>
       </div>
+
       <div class="db-sidebar-section">Shared drives</div>
       <div id="db-shared-drives">
-        <div style="font-size:11px;color:var(--muted);padding:6px 10px;opacity:0.6;">Loading…</div>
+        <div style="font-size:11px;color:var(--muted);padding:5px 14px;opacity:0.6;">Loading…</div>
       </div>
+
     </div>
 
     <!-- Main pane -->
